@@ -64,6 +64,36 @@ at `http://localhost:3000/docs`.
 | GET    | `/api/v1/analytics/mom/:monthKey`    | Month-over-month comparison                  |
 | GET    | `/api/v1/health`                     | Liveness probe                               |
 
+### Admin endpoints (role `ADMIN` required)
+
+| Method | Path                                          | Description                                  |
+| ------ | --------------------------------------------- | -------------------------------------------- |
+| GET    | `/api/v1/admin/users`                         | Paginated user list with search/filters      |
+| GET    | `/api/v1/admin/users/:id`                     | Full user detail incl. settings + counts     |
+| GET    | `/api/v1/admin/users/:id/expenses`            | Recent expenses for one user                 |
+| GET    | `/api/v1/admin/users/:id/budgets`             | Budgets history for one user                 |
+| PATCH  | `/api/v1/admin/users/:id`                     | Update one user (incl. role)                 |
+| DELETE | `/api/v1/admin/users/:id`                     | Soft-delete a user (revokes sessions)        |
+| POST   | `/api/v1/admin/users/:id/restore`             | Undo a soft-delete                           |
+| POST   | `/api/v1/admin/users/:id/reset-password`      | Mint a temp password, revoke sessions        |
+| GET    | `/api/v1/admin/stats/kpis`                    | Top-level KPIs                               |
+| GET    | `/api/v1/admin/stats/daily?days=30`           | Daily signups + expense series               |
+| GET    | `/api/v1/admin/stats/expenses-by-category`    | Spending grouped by category, current month  |
+| GET    | `/api/v1/admin/stats/top-users?take=10`       | Top spenders this month                      |
+| GET    | `/api/v1/admin/audit-log`                     | Paginated audit log                          |
+| GET    | `/api/v1/admin/export/users.csv`              | CSV export of all users                      |
+| GET    | `/api/v1/admin/export/expenses.csv?userId=…`  | CSV export of expenses (all or per user)     |
+
+### Promote a user to admin
+
+```bash
+# Promote an existing account
+npm run seed:admin -- you@example.com
+
+# Or provision an admin from scratch (must include --create + --password)
+npm run seed:admin -- you@example.com --create --password 'SuperStrong!Pwd'
+```
+
 ## Sync model
 
 All "list" endpoints accept these optional query params for incremental sync:
