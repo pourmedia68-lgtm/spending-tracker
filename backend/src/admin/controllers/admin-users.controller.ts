@@ -60,8 +60,8 @@ export class AdminUsersController {
   ) {
     return this.users.listExpenses(
       id,
-      take ? Number(take) : undefined,
-      skip ? Number(skip) : undefined,
+      parsePagination(take, 50, 200),
+      parsePagination(skip, 0, Number.MAX_SAFE_INTEGER, /* allowZero */ true),
     );
   }
 
@@ -113,4 +113,22 @@ export class AdminUsersController {
   ) {
     return this.users.resetPassword(id, actor.id, requestContext(req));
   }
+}
+
+// Defensive parser: rejects NaN / non-finite / negative values from query
+// strings so that hostile or malformed inputs cannot reach Prisma (which would
+// throw at runtime and bubble up as a 500 instead of a 400).
+function parsePagination(
+  raw: string | undefined,
+  fallback: number,
+  max: number,
+  allowZero = false,
+): number | undefined {
+  if (raw === undefined || raw === '') return undefined;
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return fallback;
+  const floored = Math.floor(n);
+  if (floored < 0) return fallback;
+  if (!allowZero && floored === 0) return fallback;
+  return Math.min(floored, max);
 }
