@@ -24,6 +24,10 @@ export class CategoryConfigsService {
   }
 
   upsert(userId: string, dto: UpsertCategoryConfigDto) {
+    // Distinguish "field not sent" (undefined → skip) from "field explicitly
+    // null" (clear in DB) so the API can both partial-update and clear.
+    const budgetUpdate =
+      dto.budget === undefined ? undefined : (dto.budget ?? null);
     return this.prisma.categoryConfig.upsert({
       where: {
         userId_categoryId: { userId, categoryId: dto.categoryId },
@@ -35,10 +39,8 @@ export class CategoryConfigsService {
         budget: dto.budget ?? null,
       },
       update: {
-        // Skip fields the client omitted so PUT /category-configs can be used
-        // for partial updates without silently clearing data.
         enabled: dto.enabled ?? undefined,
-        budget: dto.budget ?? undefined,
+        budget: budgetUpdate,
         deletedAt: null,
       },
     });

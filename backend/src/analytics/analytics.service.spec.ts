@@ -53,6 +53,23 @@ describe('AnalyticsService.monthSummary', () => {
     expect(lifestyle.ratio).toBeCloseTo(150 / 600);
   });
 
+  it('reports elapsed=0 / proratedBudget=0 / paceRatio=0 / projectedEOM=0 when the current date is before the configured startDay', async () => {
+    const budget = {
+      globalBudget: 3000,
+      startDay: 15,
+      categoryBudgets: {},
+      deletedAt: null,
+    };
+    const service = new AnalyticsService(makePrismaMock(budget, []));
+    const now = new Date(Date.UTC(2025, 3, 5)); // 5 April, before startDay=15
+    const summary = await service.monthSummary('user-1', '2025-04', now);
+
+    expect(summary.daysElapsed).toBe(0);
+    expect(summary.proratedBudget).toBe(0);
+    expect(summary.paceRatio).toBe(0);
+    expect(summary.projectedEndOfMonth).toBe(0);
+  });
+
   it('prorates the budget when the user starts mid-month', async () => {
     const budget = {
       globalBudget: 3000,

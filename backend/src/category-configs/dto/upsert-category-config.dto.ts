@@ -5,6 +5,7 @@ import {
   IsPositive,
   IsString,
   MaxLength,
+  ValidateIf,
 } from 'class-validator';
 
 export class UpsertCategoryConfigDto {
@@ -18,8 +19,12 @@ export class UpsertCategoryConfigDto {
   @IsBoolean()
   enabled?: boolean;
 
-  @ApiPropertyOptional({ example: 600 })
+  // Pass `null` to explicitly clear a previously set budget; omit the field
+  // to leave it untouched. `@IsPositive()` only runs when the value is not
+  // null so the clearing case stays valid.
+  @ApiPropertyOptional({ example: 600, nullable: true })
   @IsOptional()
+  @ValidateIf((_, value) => value !== null)
   @IsPositive()
-  budget?: number;
+  budget?: number | null;
 }

@@ -84,9 +84,13 @@ export class AnalyticsService {
     });
 
     const fullDaysInMonth = lastDayOfMonth(monthKey);
+    // elapsed = how many active-cycle days have passed.
+    // Stays at 0 when the current date is before the configured startDay so
+    // proratedBudget / projectedEndOfMonth report 0 for that edge case
+    // instead of pretending one day has passed.
     const elapsed = clamp(
       Math.max(0, dayInMonth(now, monthKey) - budget.startDay + 1),
-      1,
+      0,
       fullDaysInMonth,
     );
     const activeDays = Math.max(1, fullDaysInMonth - budget.startDay + 1);
