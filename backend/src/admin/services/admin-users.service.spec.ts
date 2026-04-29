@@ -75,7 +75,12 @@ describe('AdminUsersService', () => {
           orderBy: { createdAt: 'desc' },
         }),
       );
-      expect(result).toEqual({ items: [{ id: 'u1' }], total: 1, take: 10, skip: 0 });
+      expect(result).toEqual({
+        items: [{ id: 'u1' }],
+        total: 1,
+        take: 10,
+        skip: 0,
+      });
     });
 
     it('includes soft-deleted users when includeDeleted=true', async () => {

@@ -1,7 +1,15 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { UserRole } from '@prisma/client';
 import { Transform } from 'class-transformer';
-import { IsEnum, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import {
+  IsEnum,
+  IsIn,
+  IsInt,
+  IsOptional,
+  IsString,
+  Max,
+  Min,
+} from 'class-validator';
 
 export class ListUsersDto {
   @ApiPropertyOptional({ description: 'Free text on email or displayName.' })
@@ -38,16 +46,21 @@ export class ListUsersDto {
   @Min(0)
   skip?: number = 0;
 
+  // IMPORTANT: this list is also the runtime allow-list of column names
+  // that get spliced into the Prisma `orderBy` object. Adding fields here
+  // (or removing them) must be done deliberately — exposing a column name
+  // that isn't safe to order by leaks information through result ordering
+  // (e.g. ordering by `passwordHash` would create a sorting oracle).
   @ApiPropertyOptional({
     enum: ['createdAt', 'email', 'displayName', 'role'],
     default: 'createdAt',
   })
   @IsOptional()
-  @IsString()
+  @IsIn(['createdAt', 'email', 'displayName', 'role'])
   sort?: 'createdAt' | 'email' | 'displayName' | 'role' = 'createdAt';
 
   @ApiPropertyOptional({ enum: ['asc', 'desc'], default: 'desc' })
   @IsOptional()
-  @IsString()
+  @IsIn(['asc', 'desc'])
   order?: 'asc' | 'desc' = 'desc';
 }
