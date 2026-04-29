@@ -1,0 +1,122 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Identity
+// ---------------------------------------------------------------------------
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  email        String   @unique
+  // Null when the account was created via Google OAuth and never set a password.
+  passwordHash String?
+  // Google OAuth subject id; null for password-only accounts.
+  googleSub    String?  @unique
+  displayName  String?
+  // Currency / locale preference cached on the user (also stored in Settings).
+  currency     String   @default("EUR")
+  locale       String   @default("en_US")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  expenses         Expense[]
+  budgets          MonthlyBudget[]
+  settings         Settings?
+  categoryConfigs  CategoryConfig[]
+  refreshTokens    RefreshToken[]
+
+  @@map("users")
+}
+
+// Per-device refresh tokens — short JWT access tokens + long-lived rotating
+// refresh tokens stored hashed in DB so we can revoke a single device.
+model RefreshToken {
+  id          String   @id @default(uuid()) @db.Uuid
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String   @db.Uuid
+  // SHA-256 of the actual token; the raw token never lives in DB.
+  tokenHash   String   @unique
+  deviceLabel String?
+  expiresAt   DateTime
+  revokedAt   DateTime?
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+// ---------------------------------------------------------------------------
+// Domain
+// ---------------------------------------------------------------------------
+
+model Settings {
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId            String  @id @db.Uuid
+  currency          String  @default("EUR")
+  locale            String  @default("en_US")
+  onboardingComplete Boolean @default(false)
+  lastSeenMonthKey  String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@map("settings")
+}
+
+// One row per (user, monthKey) — monthKey is "YYYY-MM".
+model MonthlyBudget {
+  id             String   @id @default(uuid()) @db.Uuid
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId         String   @db.Uuid
+  monthKey       String
+  globalBudget   Float
+  startDay       Int
+  // {categoryId: amount} stored as JSON for flexibility — categories are a
+  // static catalog client-side and we don't need a relational link.
+  categoryBudgets Json    @default("{}")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  deletedAt      DateTime?
+
+  @@unique([userId, monthKey])
+  @@index([userId, updatedAt])
+  @@map("monthly_budgets")
+}
+
+model Expense {
+  id         String   @id @default(uuid()) @db.Uuid
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId     String   @db.Uuid
+  categoryId String
+  amount     Float
+  date       DateTime
+  note       String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  deletedAt  DateTime?
+
+  @@index([userId, date])
+  @@index([userId, updatedAt])
+  @@map("expenses")
+}
+
+// Per-user override of which categories are enabled and their custom budgets.
+model CategoryConfig {
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId     String   @db.Uuid
+  categoryId String
+  enabled    Boolean  @default(true)
+  budget     Float?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  deletedAt  DateTime?
+
+  @@id([userId, categoryId])
+  @@index([userId, updatedAt])
+  @@map("category_configs")
+}
