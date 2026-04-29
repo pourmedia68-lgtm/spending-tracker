@@ -26,7 +26,7 @@ export class AdminStatsController {
     summary: 'Daily signups + expense series for the last N days.',
   })
   daily(@Query('days') days?: string) {
-    return this.stats.daily(days ? Number(days) : 30);
+    return this.stats.daily(parsePositiveInt(days, 30, 365));
   }
 
   @Get('expenses-by-category')
@@ -38,6 +38,20 @@ export class AdminStatsController {
   @Get('top-users')
   @ApiOperation({ summary: 'Top users by spend this month.' })
   topUsers(@Query('take') take?: string) {
-    return this.stats.topUsers(take ? Number(take) : 10);
+    return this.stats.topUsers(parsePositiveInt(take, 10, 100));
   }
+}
+
+// Reject NaN / negative / non-finite values so that a hostile or malformed
+// query string can never flow into Prisma (where NaN throws at runtime as a
+// 500 instead of a 400). Also caps the upper bound to keep the query cheap.
+function parsePositiveInt(
+  raw: string | undefined,
+  fallback: number,
+  max: number,
+): number {
+  if (raw === undefined || raw === '') return fallback;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return fallback;
+  return Math.min(Math.floor(n), max);
 }

@@ -170,12 +170,27 @@ export class AuthService {
     if (!stored || stored.revokedAt || stored.expiresAt < new Date()) {
       throw new UnauthorizedException('Invalid refresh token');
     }
-    // Rotate: revoke the old token and mint a fresh pair.
+    // Rotate: revoke the old token first so a concurrent caller can't reuse it.
     await this.prisma.refreshToken.update({
       where: { id: stored.id },
       data: { revokedAt: new Date() },
     });
-    return this.signPair(payload.sub, payload.email);
+    // Refuse to mint new tokens for soft-deleted accounts. We mirror the same
+    // checks used in login() / loginOrLinkGoogle() / JwtStrategy.validate() so
+    // that revoking access via softDelete cannot be bypassed via /auth/refresh.
+    const user = await this.prisma.user.findUnique({
+      where: { id: payload.sub },
+    });
+    if (!user || user.deletedAt) {
+      // Defensively revoke any other live tokens for the user so no further
+      // refresh attempts succeed even if softDelete races with us.
+      await this.prisma.refreshToken.updateMany({
+        where: { userId: payload.sub, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+      throw new UnauthorizedException('Account disabled');
+    }
+    return this.signPair(user.id, user.email);
   }
 
   async logout(refreshToken: string): Promise<void> {

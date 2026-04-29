@@ -102,4 +102,43 @@ describe('AuthService', () => {
       );
     });
   });
+
+  describe('refresh', () => {
+    it('rejects soft-deleted users and revokes their remaining tokens', async () => {
+      const updateMany = jest.fn().mockResolvedValue({ count: 0 });
+      const prisma = {
+        refreshToken: {
+          findUnique: jest.fn().mockResolvedValue({
+            id: 'rt1',
+            revokedAt: null,
+            expiresAt: new Date(Date.now() + 60_000),
+          }),
+          update: jest.fn().mockResolvedValue({}),
+          updateMany,
+          create: jest.fn(),
+        },
+        user: {
+          findUnique: jest.fn().mockResolvedValue({
+            id: 'u1',
+            email: 'u@e.co',
+            deletedAt: new Date(),
+          }),
+        },
+      } as unknown as PrismaService;
+      const service = makeService(prisma);
+      const jwt = (service as unknown as { jwt: JwtService }).jwt;
+      (jwt.verifyAsync as jest.Mock).mockResolvedValue({
+        sub: 'u1',
+        email: 'u@e.co',
+      });
+      await expect(service.refresh('refresh-token')).rejects.toBeInstanceOf(
+        UnauthorizedException,
+      );
+      // Both the rotated token and any other live tokens for the user are revoked.
+      expect(updateMany).toHaveBeenCalledWith({
+        where: { userId: 'u1', revokedAt: null },
+        data: { revokedAt: expect.any(Date) },
+      });
+    });
+  });
 });
