@@ -11,6 +11,11 @@ datasource db {
 // Identity
 // ---------------------------------------------------------------------------
 
+enum UserRole {
+  USER
+  ADMIN
+}
+
 model User {
   id           String   @id @default(uuid()) @db.Uuid
   email        String   @unique
@@ -22,6 +27,10 @@ model User {
   // Currency / locale preference cached on the user (also stored in Settings).
   currency     String   @default("EUR")
   locale       String   @default("en_US")
+  // Authorization role. ADMIN unlocks /api/v1/admin/* endpoints.
+  role         UserRole @default(USER)
+  // Soft-delete: deleted accounts are preserved but excluded from auth flows.
+  deletedAt    DateTime?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -30,8 +39,37 @@ model User {
   settings         Settings?
   categoryConfigs  CategoryConfig[]
   refreshTokens    RefreshToken[]
+  auditLogsActed   AuditLog[]       @relation("AuditActor")
 
+  @@index([deletedAt])
+  @@index([role])
   @@map("users")
+}
+
+// Append-only log of administrative actions for forensic / compliance use.
+model AuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  actor      User     @relation("AuditActor", fields: [actorId], references: [id], onDelete: Restrict)
+  actorId    String   @db.Uuid
+  // Logical category of the affected resource ("user", "expense", "budget"…).
+  targetType String
+  // Optional foreign id of the affected resource. Stringly-typed so we can
+  // reference soft-deleted or external entities without a hard FK.
+  targetId   String?
+  // Verb — "user.update", "user.role_change", "user.password_reset",
+  // "user.soft_delete", "user.restore", "auth.login_as", "export.csv".
+  action     String
+  // Free-form structured details (diff, query params, request body excerpt).
+  metadata   Json?
+  ip         String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  @@index([actorId, createdAt])
+  @@index([targetType, targetId])
+  @@index([createdAt])
+  @@index([action])
+  @@map("audit_logs")
 }
 
 // Per-device refresh tokens — short JWT access tokens + long-lived rotating

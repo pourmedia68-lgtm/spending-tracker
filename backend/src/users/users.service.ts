@@ -16,6 +16,7 @@ export class UsersService {
         displayName: true,
         currency: true,
         locale: true,
+        role: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -40,6 +41,7 @@ export class UsersService {
         displayName: true,
         currency: true,
         locale: true,
+        role: true,
         updatedAt: true,
       },
     });
