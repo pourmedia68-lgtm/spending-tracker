@@ -1,3 +1,7 @@
+/// Sentinel used by [AppSettings.copyWith] to distinguish "leave the field
+/// untouched" from "set the field to null" for nullable parameters.
+const Object _unset = Object();
+
 class AppSettings {
   const AppSettings({
     required this.currency,
@@ -15,13 +19,15 @@ class AppSettings {
     String? currency,
     bool? onboardingComplete,
     String? locale,
-    String? lastSeenMonthKey,
+    Object? lastSeenMonthKey = _unset,
   }) {
     return AppSettings(
       currency: currency ?? this.currency,
       onboardingComplete: onboardingComplete ?? this.onboardingComplete,
       locale: locale ?? this.locale,
-      lastSeenMonthKey: lastSeenMonthKey ?? this.lastSeenMonthKey,
+      lastSeenMonthKey: identical(lastSeenMonthKey, _unset)
+          ? this.lastSeenMonthKey
+          : lastSeenMonthKey as String?,
     );
   }
 

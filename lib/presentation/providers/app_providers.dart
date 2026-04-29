@@ -112,8 +112,10 @@ class CurrentBudgetNotifier extends Notifier<MonthlyBudget?> {
     return repo.getForMonth(key);
   }
 
-  Future<void> save(MonthlyBudget budget) =>
-      ref.read(budgetRepositoryProvider).upsert(budget);
+  Future<void> save(MonthlyBudget budget) async {
+    await ref.read(budgetRepositoryProvider).upsert(budget);
+    state = budget;
+  }
 }
 
 final currentBudgetProvider =
