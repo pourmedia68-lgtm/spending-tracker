@@ -1,6 +1,7 @@
 import { ConflictException, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
+import { Prisma } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
 import { PrismaService } from '../prisma/prisma.service';
@@ -29,11 +30,17 @@ describe('AuthService', () => {
   }
 
   describe('register', () => {
-    it('rejects when the email is already taken', async () => {
+    it('maps Prisma P2002 unique-constraint errors to ConflictException', async () => {
       const prisma = {
         user: {
-          findUnique: jest.fn().mockResolvedValue({ id: 'u1' }),
-          create: jest.fn(),
+          create: jest
+            .fn()
+            .mockRejectedValue(
+              new Prisma.PrismaClientKnownRequestError(
+                'Unique constraint failed on the fields: (`email`)',
+                { code: 'P2002', clientVersion: 'test' },
+              ),
+            ),
         },
         refreshToken: { create: jest.fn() },
       } as unknown as PrismaService;
@@ -48,10 +55,7 @@ describe('AuthService', () => {
         .fn()
         .mockResolvedValue({ id: 'u1', email: 'u@e.co', displayName: null });
       const prisma = {
-        user: {
-          findUnique: jest.fn().mockResolvedValue(null),
-          create,
-        },
+        user: { create },
         refreshToken: { create: jest.fn() },
       } as unknown as PrismaService;
       const service = makeService(prisma);

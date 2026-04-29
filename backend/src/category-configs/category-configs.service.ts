@@ -35,8 +35,10 @@ export class CategoryConfigsService {
         budget: dto.budget ?? null,
       },
       update: {
+        // Skip fields the client omitted so PUT /category-configs can be used
+        // for partial updates without silently clearing data.
         enabled: dto.enabled ?? undefined,
-        budget: dto.budget ?? null,
+        budget: dto.budget ?? undefined,
         deletedAt: null,
       },
     });

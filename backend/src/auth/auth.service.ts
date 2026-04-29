@@ -49,19 +49,26 @@ export class AuthService {
     password: string,
     displayName?: string,
   ): Promise<AuthResult> {
-    const existing = await this.prisma.user.findUnique({ where: { email } });
-    if (existing) {
-      throw new ConflictException('Email already registered');
-    }
     const passwordHash = await bcrypt.hash(password, 12);
-    const user = await this.prisma.user.create({
-      data: {
-        email,
-        passwordHash,
-        displayName: displayName ?? null,
-        settings: { create: {} },
-      },
-    });
+    // We rely on the DB unique constraint instead of a check-then-create to
+    // avoid a TOCTOU race between two concurrent registrations with the same
+    // email returning 500 instead of 409.
+    let user;
+    try {
+      user = await this.prisma.user.create({
+        data: {
+          email,
+          passwordHash,
+          displayName: displayName ?? null,
+          settings: { create: {} },
+        },
+      });
+    } catch (err) {
+      if (isUniqueConstraintError(err)) {
+        throw new ConflictException('Email already registered');
+      }
+      throw err;
+    }
     return this.issueTokens(user.id, user.email, user.displayName);
   }
 
@@ -96,15 +103,18 @@ export class AuthService {
     const byEmail = await this.prisma.user.findUnique({
       where: { email: profile.email },
     });
-    const user = byEmail
-      ? await this.prisma.user.update({
-          where: { id: byEmail.id },
-          data: {
-            googleSub: profile.sub,
-            displayName: byEmail.displayName ?? profile.displayName,
-          },
-        })
-      : await this.prisma.user.create({
+    let user;
+    if (byEmail) {
+      user = await this.prisma.user.update({
+        where: { id: byEmail.id },
+        data: {
+          googleSub: profile.sub,
+          displayName: byEmail.displayName ?? profile.displayName,
+        },
+      });
+    } else {
+      try {
+        user = await this.prisma.user.create({
           data: {
             email: profile.email,
             googleSub: profile.sub,
@@ -112,6 +122,23 @@ export class AuthService {
             settings: { create: {} },
           },
         });
+      } catch (err) {
+        // Lost the race with another OAuth callback for the same Google
+        // account / email — fall back to the existing row instead of 500.
+        if (!isUniqueConstraintError(err)) {
+          throw err;
+        }
+        const existing = await this.prisma.user.findFirst({
+          where: {
+            OR: [{ googleSub: profile.sub }, { email: profile.email }],
+          },
+        });
+        if (!existing) {
+          throw err;
+        }
+        user = existing;
+      }
+    }
     return this.issueTokens(user.id, user.email, user.displayName);
   }
 
@@ -194,6 +221,12 @@ export class AuthService {
 
 function sha256(value: string): string {
   return createHash('sha256').update(value).digest('hex');
+}
+
+function isUniqueConstraintError(err: unknown): boolean {
+  return (
+    err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002'
+  );
 }
 
 function parseDurationMs(value: string): number {
